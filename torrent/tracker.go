@@ -1,7 +1,10 @@
 package torrent
 
 import (
+	"encoding/binary"
 	"fmt"
+	"math/rand"
+	"net"
 	"net/http"
 	"net/url"
 
@@ -60,4 +63,33 @@ func (t tracker) httpTrackerPeers(infoHash string) ([]any, error) {
 	}
 
 	return peersMap, nil
+}
+
+func (t tracker) udpTrackerConnect() (conn_id uint64, err error) {
+	conn, err := net.Dial("udp", t.url)
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
+
+	payload := make([]byte, 16)
+	binary.BigEndian.PutUint64(payload[:8], 0x41727101980)
+	binary.BigEndian.PutUint32(payload[8:12], 0)
+	binary.BigEndian.PutUint32(payload[12:16], rand.Uint32())
+	_, err = conn.Write(payload)
+	if err != nil {
+		return 0, err
+	}
+
+	buffer := make([]byte, 1024)
+	n, err := conn.Read(buffer)
+	actionResponse := binary.BigEndian.Uint32(buffer[:4])
+	if n != 16 {
+		return 0, fmt.Errorf("Connect Response Size was supposed be 16 bytes, instead got %d bytes", n)
+	}
+	if actionResponse != 0 {
+		return 0, fmt.Errorf("action Response was supposed to be 0, instead got %d", actionResponse)
+	}
+	conn_id = binary.BigEndian.Uint64(buffer[8:16])
+	return conn_id, nil
 }
