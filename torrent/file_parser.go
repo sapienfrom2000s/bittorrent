@@ -1,8 +1,8 @@
 package torrent
 
 import (
+	"bytes"
 	"crypto/sha1"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -93,12 +93,13 @@ func (t TorrentFile) Trackers(dataMap map[string]any) ([]string, error) {
 }
 
 func (t TorrentFile) InfoHash(info map[string]any) (string, error) {
-	bytes, err := json.Marshal(info)
+	var buf bytes.Buffer
+	err := bencode.Marshal(&buf, info)
 	if err != nil {
 		return "", err
 	}
 
-	sha1Array := sha1.Sum(bytes)
+	sha1Array := sha1.Sum(buf.Bytes())
 	return fmt.Sprintf("%x", sha1Array), nil
 }
 
@@ -139,7 +140,7 @@ func (t TorrentFile) UDPTrackers(trackers []string) ([]string, error) {
 }
 
 func (t TorrentFile) Parse() (map[string]any, error) {
-	file, err := os.Open(t.path)
+	file, err := os.Open(t.Path)
 	if err != nil {
 		return nil, err
 	}
