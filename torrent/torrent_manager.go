@@ -13,7 +13,7 @@ type PieceRequestResponseBus struct {
 	data chan any
 }
 
-type torrentManager struct {
+type TorrentManager struct {
 	torrentFilePath string
 	peerManager     *PeerManager
 	pieceManager    *PieceManager

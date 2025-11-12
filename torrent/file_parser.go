@@ -10,11 +10,80 @@ import (
 	"github.com/jackpal/bencode-go"
 )
 
-type torrentFile struct {
-	path string
+type TorrentFile struct {
+	Path string
 }
 
-func (t torrentFile) Trackers(dataMap map[string]any) ([]string, error) {
+type TorrentFileInfo struct {
+	TorrentFile  *TorrentFile
+	Info         map[string]any
+	InfoHash     string
+	HTTPTrackers []string
+	UDPTrackers  []string
+	Mode         fileType
+	PieceLength  uint
+	TotalPieces  uint
+}
+
+func (t TorrentFile) SetTorrentFileInfo() (TorrentFileInfo, error) {
+	tfi := TorrentFileInfo{}
+
+	info, err := t.Info()
+	if err != nil {
+		return tfi, err
+	}
+
+	parsedFile, err := t.Parse()
+	if err != nil {
+		return tfi, err
+	}
+
+	trackers, err := t.Trackers(parsedFile)
+	if err != nil {
+		return tfi, err
+	}
+
+	httpTrackers, err := t.HTTPTrackers(trackers)
+	if err != nil {
+		return tfi, err
+	}
+
+	udpTrackers, err := t.UDPTrackers(trackers)
+	if err != nil {
+		return tfi, err
+	}
+
+	infoHash, err := t.InfoHash(info)
+	if err != nil {
+		return tfi, err
+	}
+
+	fileMode := t.FileMode(info)
+	pieceLength, ok := info["piece_length"].(uint)
+	if !ok {
+		return tfi, fmt.Errorf("Piece length has to be a non-neg integer")
+	}
+
+	fileLength, ok := info["length"].(uint)
+	if !ok {
+		return tfi, fmt.Errorf("File length has to be a non-neg integer")
+	}
+
+	numberOfPieces := (fileLength + pieceLength - 1) / pieceLength // clever math trick to get ceil value
+
+	tfi.TorrentFile = &t
+	tfi.Info = info
+	tfi.InfoHash = infoHash
+	tfi.HTTPTrackers = httpTrackers
+	tfi.UDPTrackers = udpTrackers
+	tfi.Mode = fileMode
+	tfi.PieceLength = pieceLength
+	tfi.TotalPieces = numberOfPieces
+
+	return tfi, nil
+}
+
+func (t TorrentFile) Trackers(dataMap map[string]any) ([]string, error) {
 	trackers, ok := dataMap["announce-list"].([]string)
 	if !ok {
 		return nil, fmt.Errorf("announce-list not in array of strings")
@@ -23,10 +92,10 @@ func (t torrentFile) Trackers(dataMap map[string]any) ([]string, error) {
 	return trackers, nil
 }
 
-func (t torrentFile) InfoHash(info map[string]any) (string, error) {
+func (t TorrentFile) InfoHash(info map[string]any) (string, error) {
 	bytes, err := json.Marshal(info)
 	if err != nil {
-		return "", fmt.Errorf("Unable to read marshal info")
+		return "", err
 	}
 
 	sha1Array := sha1.Sum(bytes)
@@ -38,7 +107,7 @@ type fileType string
 const single fileType = "single"
 const multi fileType = "multi"
 
-func (t torrentFile) FileMode(info map[string]any) fileType {
+func (t TorrentFile) FileMode(info map[string]any) fileType {
 	_, ok := info["files"]
 	if ok {
 		return multi
@@ -47,7 +116,7 @@ func (t torrentFile) FileMode(info map[string]any) fileType {
 	}
 }
 
-func (t torrentFile) HTTPTrackers(trackers []string) ([]string, error) {
+func (t TorrentFile) HTTPTrackers(trackers []string) ([]string, error) {
 	var httpTrackers []string
 	for _, tracker := range trackers {
 		ok := strings.HasPrefix(tracker, "http")
@@ -58,7 +127,7 @@ func (t torrentFile) HTTPTrackers(trackers []string) ([]string, error) {
 	return httpTrackers, nil
 }
 
-func (t torrentFile) UDPTrackers(trackers []string) ([]string, error) {
+func (t TorrentFile) UDPTrackers(trackers []string) ([]string, error) {
 	var updTrackers []string
 	for _, tracker := range trackers {
 		ok := strings.HasPrefix(tracker, "udp")
@@ -69,7 +138,7 @@ func (t torrentFile) UDPTrackers(trackers []string) ([]string, error) {
 	return updTrackers, nil
 }
 
-func (t torrentFile) Parse() (map[string]any, error) {
+func (t TorrentFile) Parse() (map[string]any, error) {
 	file, err := os.Open(t.path)
 	if err != nil {
 		return nil, err
@@ -81,7 +150,19 @@ func (t torrentFile) Parse() (map[string]any, error) {
 	}
 	dataMap, ok := data.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("File has to be in dictionary format")
+		return nil, err
 	}
 	return dataMap, nil
+}
+
+func (t TorrentFile) Info() (map[string]any, error) {
+	parsedFile, err := t.Parse()
+	if err != nil {
+		return nil, err
+	}
+	info, ok := parsedFile["info"].(map[string]any)
+	if !ok {
+		return nil, err
+	}
+	return info, nil
 }

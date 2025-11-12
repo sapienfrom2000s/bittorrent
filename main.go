@@ -1,7 +1,20 @@
 package main
 
-import "fmt"
+import (
+	"bittorrent/torrent"
+	"fmt"
+)
 
 func main() {
-	fmt.Println("Hii")
+	file := torrent.TorrentFile{
+		Path: "adsf",
+	}
+	torrentFileInfo, err := file.SetTorrentFileInfo()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	// peerManager := torrent.PeerManager{}
+	// pieceManager := torrent.PieceManager{}
+	// torrentManager := torrent.TorrentManager{}
 }
