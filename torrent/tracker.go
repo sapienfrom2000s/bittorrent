@@ -73,7 +73,7 @@ func (t tracker) ConnectRequest() (conn_id uint64, err error) {
 	defer conn.Close()
 
 	payload := make([]byte, 16)
-	binary.BigEndian.PutUint64(payload[:8], 0x41727101980)
+	binary.BigEndian.PutUint64(payload[:8], 0x0000041727101980)
 	binary.BigEndian.PutUint32(payload[8:12], 0)
 	binary.BigEndian.PutUint32(payload[12:16], rand.Uint32())
 	_, err = conn.Write(payload)
@@ -111,7 +111,7 @@ func (t tracker) ConnectRequest() (conn_id uint64, err error) {
 // 98
 
 func (t tracker) AnnounceRequest(conn_id uint64, info_hash string) (p []any, err error) {
-	payload := make([]byte, 20)
+	payload := make([]byte, 98)
 	binary.BigEndian.PutUint64(payload[:8], conn_id)
 	binary.BigEndian.PutUint32(payload[8:12], 1)
 	binary.BigEndian.PutUint32(payload[12:16], rand.Uint32())
@@ -119,11 +119,11 @@ func (t tracker) AnnounceRequest(conn_id uint64, info_hash string) (p []any, err
 	copy(payload[16:36], []byte(info_hash))
 	peerID := "abcde12345abcde12345"
 	copy(payload[36:56], []byte(peerID))
-	binary.BigEndian.PutUint32(payload[56:64], 0)
-	binary.BigEndian.PutUint32(payload[64:72], 10000)
-	binary.BigEndian.PutUint32(payload[72:80], 0)
-	binary.BigEndian.PutUint16(payload[80:84], 0)
-	binary.BigEndian.PutUint16(payload[84:88], 0)
+	binary.BigEndian.PutUint64(payload[56:64], 0)
+	binary.BigEndian.PutUint64(payload[64:72], 10000)
+	binary.BigEndian.PutUint64(payload[72:80], 0)
+	binary.BigEndian.PutUint32(payload[80:84], 0)
+	binary.BigEndian.PutUint32(payload[84:88], 0)
 	key := rand.Uint32()
 	binary.BigEndian.PutUint32(payload[88:92], key)
 	num_want := -1
@@ -150,4 +150,6 @@ func (t tracker) AnnounceRequest(conn_id uint64, info_hash string) (p []any, err
 	if action != 1 {
 		return nil, fmt.Errorf("Announce response from udp tracker server had to be 1")
 	}
+
+	return nil, nil
 }

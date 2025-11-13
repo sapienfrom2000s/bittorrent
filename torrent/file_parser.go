@@ -21,8 +21,8 @@ type TorrentFileInfo struct {
 	HTTPTrackers []string
 	UDPTrackers  []string
 	Mode         fileType
-	PieceLength  uint
-	TotalPieces  uint
+	PieceLength  int64
+	TotalPieces  int64
 }
 
 func (t TorrentFile) SetTorrentFileInfo() (TorrentFileInfo, error) {
@@ -59,14 +59,14 @@ func (t TorrentFile) SetTorrentFileInfo() (TorrentFileInfo, error) {
 	}
 
 	fileMode := t.FileMode(info)
-	pieceLength, ok := info["piece_length"].(uint)
+	pieceLength, ok := info["piece length"].(int64)
 	if !ok {
 		return tfi, fmt.Errorf("Piece length has to be a non-neg integer")
 	}
 
-	fileLength, ok := info["length"].(uint)
+	fileLength, ok := info["length"].(int64)
 	if !ok {
-		return tfi, fmt.Errorf("File length has to be a non-neg integer")
+		return tfi, fmt.Errorf("File length has to be asdfasa non-neg integer")
 	}
 
 	numberOfPieces := (fileLength + pieceLength - 1) / pieceLength // clever math trick to get ceil value
@@ -91,12 +91,13 @@ func (t TorrentFile) Trackers(dataMap map[string]any) ([]string, error) {
 	}
 
 	for _, val := range trackersData {
-		v, ok := val.([]string)
+		v, ok := val.([]any)
 		if !ok {
 			return nil, fmt.Errorf("Not a nested array")
 		}
 		for _, g := range v {
-			trackers = append(trackers, g)
+			k, _ := g.(string)
+			trackers = append(trackers, k)
 		}
 	}
 
