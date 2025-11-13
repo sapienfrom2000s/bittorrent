@@ -84,9 +84,20 @@ func (t TorrentFile) SetTorrentFileInfo() (TorrentFileInfo, error) {
 }
 
 func (t TorrentFile) Trackers(dataMap map[string]any) ([]string, error) {
-	trackers, ok := dataMap["announce-list"].([]string)
+	trackers := []string{}
+	trackersData, ok := dataMap["announce-list"].([]any)
 	if !ok {
-		return nil, fmt.Errorf("announce-list not in array of strings")
+		return nil, fmt.Errorf("announce-list not found or not an array")
+	}
+
+	for _, val := range trackersData {
+		v, ok := val.([]string)
+		if !ok {
+			return nil, fmt.Errorf("Not a nested array")
+		}
+		for _, g := range v {
+			trackers = append(trackers, g)
+		}
 	}
 
 	return trackers, nil
