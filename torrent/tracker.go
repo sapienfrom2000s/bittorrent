@@ -2,6 +2,7 @@ package torrent
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"net"
@@ -27,8 +28,15 @@ func (t tracker) Peers(infoHash string) ([]Peer, error) {
 }
 
 func (t tracker) httpTrackerPeers(infoHash string) ([]Peer, error) {
+	// Convert hex-encoded infohash to raw bytes
+	infoHashBytes, err := hex.DecodeString(infoHash)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode infohash: %v", err)
+	}
+
 	params := url.Values{}
-	params.Add("info_hash", infoHash)
+	// Use raw bytes for info_hash, not the hex string
+	params.Add("info_hash", string(infoHashBytes))
 	params.Add("peer_id", "abcde12345abcde12345")
 	params.Add("port", "6883")
 	params.Add("uploaded", "0")
@@ -57,38 +65,57 @@ func (t tracker) httpTrackerPeers(infoHash string) ([]Peer, error) {
 		return nil, fmt.Errorf("tracker response not in dictionary format")
 	}
 
-	for key, value := range dict {
-		fmt.Printf("Key: %s, Value: %#v, Type: %T\n", key, value, value)
+	// Check for failure reason first
+	if failureReason, ok := dict["failure reason"].(string); ok {
+		return nil, fmt.Errorf("tracker error: %s", failureReason)
 	}
 
-	peersMap, ok := dict["peers"].([]any)
-	if !ok {
-		fmt.Printf("Type of dict[\"peers\"]: %T\n", peersMap)
-		return nil, fmt.Errorf("Peers map not in dictionary format")
-	}
+	// Try to parse peers - could be compact (binary string) or dictionary format
+	peers := make([]Peer, 0)
 
-	// Convert to []Peer
-	peers := make([]Peer, 0, len(peersMap))
-	for _, p := range peersMap {
-		pDict, ok := p.(map[string]any)
-		if !ok {
-			continue
+	if peersCompact, ok := dict["peers"].(string); ok {
+		peersBytes := []byte(peersCompact)
+		if len(peersBytes)%6 != 0 {
+			return nil, fmt.Errorf("invalid compact peers format: length %d not divisible by 6", len(peersBytes))
 		}
 
-		ip, _ := pDict["ip"].(string)
-		port, _ := pDict["port"].(int64) // sometimes decoded as int64
-		peerID, _ := pDict["peer id"].(string)
+		for i := 0; i < len(peersBytes); i += 6 {
+			ip := fmt.Sprintf("%d.%d.%d.%d", peersBytes[i], peersBytes[i+1], peersBytes[i+2], peersBytes[i+3])
+			port := binary.BigEndian.Uint16(peersBytes[i+4 : i+6])
 
-		peer := Peer{
-			id:   peerID,
-			Ip:   ip,
-			port: uint(port),
-			// am_interested, unchoked, bitfield, status default to zero values
+			peer := Peer{
+				id:   "", // Compact format doesn't include peer ID
+				Ip:   ip,
+				port: uint(port),
+			}
+			peers = append(peers, peer)
 		}
-		peers = append(peers, peer)
+		return peers, nil
 	}
 
-	return peers, nil
+	// Try dictionary format
+	if peersMap, ok := dict["peers"].([]any); ok {
+		for _, p := range peersMap {
+			pDict, ok := p.(map[string]any)
+			if !ok {
+				continue
+			}
+
+			ip, _ := pDict["ip"].(string)
+			port, _ := pDict["port"].(int64)
+			peerID, _ := pDict["peer id"].(string)
+
+			peer := Peer{
+				id:   peerID,
+				Ip:   ip,
+				port: uint(port),
+			}
+			peers = append(peers, peer)
+		}
+		return peers, nil
+	}
+
+	return nil, fmt.Errorf("peers field not found or in unknown format")
 }
 
 func (t tracker) ConnectRequest() (conn_id uint64, err error) {
