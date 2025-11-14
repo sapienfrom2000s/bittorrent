@@ -18,6 +18,20 @@ func main() {
 		log.Fatalf("Error parsing torrent file: %v", err)
 	}
 
+	peerManager := &torrent.PeerManager{
+		Infohash: tfi.InfoHash,
+	}
+	trackerManager := torrent.TrackerManager{
+		Infohash: tfi.InfoHash,
+		Pm:       peerManager,
+		Trackers: tfi.Trackers,
+	}
+
+	trackerManager.AskForPeers()
+	for _, i := range peerManager.Peers {
+		fmt.Println(i.Ip)
+	}
+
 	// pm := torrent.PeerManager{}
 	// pm.InitTrackers(tfi.HTTPTrackers)
 	// pm.InitTrackers(tfi.UDPTrackers)

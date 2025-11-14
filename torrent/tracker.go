@@ -16,7 +16,7 @@ type tracker struct {
 	Kind string
 }
 
-func (t tracker) Peers(infoHash string) ([]any, error) {
+func (t tracker) Peers(infoHash string) ([]Peer, error) {
 	switch t.Kind {
 	case "http":
 		return t.httpTrackerPeers(infoHash)
@@ -26,7 +26,7 @@ func (t tracker) Peers(infoHash string) ([]any, error) {
 	return nil, fmt.Errorf("only works for udp and http")
 }
 
-func (t tracker) httpTrackerPeers(infoHash string) ([]any, error) {
+func (t tracker) httpTrackerPeers(infoHash string) ([]Peer, error) {
 	params := url.Values{}
 	params.Add("info_hash", infoHash)
 	params.Add("peer_id", "abcde12345abcde12345")
@@ -57,12 +57,38 @@ func (t tracker) httpTrackerPeers(infoHash string) ([]any, error) {
 		return nil, fmt.Errorf("tracker response not in dictionary format")
 	}
 
+	for key, value := range dict {
+		fmt.Printf("Key: %s, Value: %#v, Type: %T\n", key, value, value)
+	}
+
 	peersMap, ok := dict["peers"].([]any)
 	if !ok {
+		fmt.Printf("Type of dict[\"peers\"]: %T\n", peersMap)
 		return nil, fmt.Errorf("Peers map not in dictionary format")
 	}
 
-	return peersMap, nil
+	// Convert to []Peer
+	peers := make([]Peer, 0, len(peersMap))
+	for _, p := range peersMap {
+		pDict, ok := p.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		ip, _ := pDict["ip"].(string)
+		port, _ := pDict["port"].(int64) // sometimes decoded as int64
+		peerID, _ := pDict["peer id"].(string)
+
+		peer := Peer{
+			id:   peerID,
+			Ip:   ip,
+			port: uint(port),
+			// am_interested, unchoked, bitfield, status default to zero values
+		}
+		peers = append(peers, peer)
+	}
+
+	return peers, nil
 }
 
 func (t tracker) ConnectRequest() (conn_id uint64, err error) {
@@ -110,7 +136,7 @@ func (t tracker) ConnectRequest() (conn_id uint64, err error) {
 // 96      16-bit integer  port
 // 98
 
-func (t tracker) AnnounceRequest(conn_id uint64, info_hash string) (p []any, err error) {
+func (t tracker) AnnounceRequest(conn_id uint64, info_hash string) (p []Peer, err error) {
 	payload := make([]byte, 98)
 	binary.BigEndian.PutUint64(payload[:8], conn_id)
 	binary.BigEndian.PutUint32(payload[8:12], 1)
