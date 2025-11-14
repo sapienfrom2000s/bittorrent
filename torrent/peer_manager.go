@@ -1,7 +1,7 @@
 package torrent
 
 type PeerManager struct {
-	peer []Peer
+	peers []Peer
 }
 
 type Peer struct {

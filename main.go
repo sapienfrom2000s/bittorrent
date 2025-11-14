@@ -18,6 +18,10 @@ func main() {
 		log.Fatalf("Error parsing torrent file: %v", err)
 	}
 
+	// pm := torrent.PeerManager{}
+	// pm.InitTrackers(tfi.HTTPTrackers)
+	// pm.InitTrackers(tfi.UDPTrackers)
+
 	// Print out the parsed information
 	fmt.Println("=== Torrent File Information ===")
 	fmt.Printf("InfoHash: %s\n", tfi.InfoHash)
@@ -26,13 +30,8 @@ func main() {
 	fmt.Printf("Total Pieces: %d\n", tfi.TotalPieces)
 
 	fmt.Println("\n=== HTTP Trackers ===")
-	for i, tracker := range tfi.HTTPTrackers {
-		fmt.Printf("%d. %s\n", i+1, tracker)
-	}
-
-	fmt.Println("\n=== UDP Trackers ===")
-	for i, tracker := range tfi.UDPTrackers {
-		fmt.Printf("%d. %s\n", i+1, tracker)
+	for i, tracker := range tfi.Trackers {
+		fmt.Printf("%d. %s. %s\n", i+1, tracker.Kind, tracker.Url)
 	}
 
 	fmt.Println("\n=== Info Dictionary Keys ===")

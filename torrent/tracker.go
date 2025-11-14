@@ -12,12 +12,12 @@ import (
 )
 
 type tracker struct {
-	url  string
-	kind string
+	Url  string
+	Kind string
 }
 
 func (t tracker) Peers(infoHash string) ([]any, error) {
-	switch t.kind {
+	switch t.Kind {
 	case "http":
 		return t.httpTrackerPeers(infoHash)
 	case "udp":
@@ -36,7 +36,7 @@ func (t tracker) httpTrackerPeers(infoHash string) ([]any, error) {
 	params.Add("left", "10000")
 	params.Add("compact", "0")
 
-	fullURL := t.url + "?" + params.Encode()
+	fullURL := t.Url + "?" + params.Encode()
 	resp, err := http.Get(fullURL)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to get response from http tracker server")
@@ -66,7 +66,7 @@ func (t tracker) httpTrackerPeers(infoHash string) ([]any, error) {
 }
 
 func (t tracker) ConnectRequest() (conn_id uint64, err error) {
-	conn, err := net.Dial("udp", t.url)
+	conn, err := net.Dial("udp", t.Url)
 	if err != nil {
 		return 0, err
 	}
@@ -130,7 +130,7 @@ func (t tracker) AnnounceRequest(conn_id uint64, info_hash string) (p []any, err
 	binary.BigEndian.PutUint32(payload[92:96], uint32(int32(num_want)))
 	binary.BigEndian.PutUint16(payload[96:98], 6888)
 
-	conn, err := net.Dial("udp", t.url)
+	conn, err := net.Dial("udp", t.Url)
 	if err != nil {
 		return nil, err
 	}
