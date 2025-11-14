@@ -133,36 +133,6 @@ func (t TorrentFile) FileMode(info map[string]any) fileType {
 	}
 }
 
-// func (t TorrentFile) HTTPTrackers(trackers []string) ([]tracker, error) {
-// 	var httpTrackers []tracker
-// 	for _, str := range trackers {
-// 		ok := strings.HasPrefix(str, "http")
-// 		if ok {
-// 			tr := tracker{
-// 				kind: "http",
-// 				url:  str,
-// 			}
-// 			httpTrackers = append(httpTrackers, tr)
-// 		}
-// 	}
-// 	return httpTrackers, nil
-// }
-
-// func (t TorrentFile) UDPTrackers(trackers []string) ([]tracker, error) {
-// 	var updTrackers []tracker
-// 	for _, str := range trackers {
-// 		ok := strings.HasPrefix(str, "udp")
-// 		if ok {
-// 			tr := tracker{
-// 				kind: "udp",
-// 				url:  str,
-// 			}
-// 			updTrackers = append(updTrackers, tr)
-// 		}
-// 	}
-// 	return updTrackers, nil
-// }
-
 func (t TorrentFile) Parse() (map[string]any, error) {
 	file, err := os.Open(t.Path)
 	if err != nil {
