@@ -18,8 +18,8 @@ type TorrentFileInfo struct {
 	TorrentFile  *TorrentFile
 	Info         map[string]any
 	InfoHash     string
-	HTTPTrackers []string
-	UDPTrackers  []string
+	HTTPTrackers []tracker
+	UDPTrackers  []tracker
 	Mode         fileType
 	PieceLength  int64
 	TotalPieces  int64
@@ -129,23 +129,31 @@ func (t TorrentFile) FileMode(info map[string]any) fileType {
 	}
 }
 
-func (t TorrentFile) HTTPTrackers(trackers []string) ([]string, error) {
-	var httpTrackers []string
-	for _, tracker := range trackers {
-		ok := strings.HasPrefix(tracker, "http")
+func (t TorrentFile) HTTPTrackers(trackers []string) ([]tracker, error) {
+	var httpTrackers []tracker
+	for _, str := range trackers {
+		ok := strings.HasPrefix(str, "http")
 		if ok {
-			httpTrackers = append(httpTrackers, tracker)
+			tr := tracker{
+				kind: "http",
+				url:  str,
+			}
+			httpTrackers = append(httpTrackers, tr)
 		}
 	}
 	return httpTrackers, nil
 }
 
-func (t TorrentFile) UDPTrackers(trackers []string) ([]string, error) {
-	var updTrackers []string
-	for _, tracker := range trackers {
-		ok := strings.HasPrefix(tracker, "udp")
+func (t TorrentFile) UDPTrackers(trackers []string) ([]tracker, error) {
+	var updTrackers []tracker
+	for _, str := range trackers {
+		ok := strings.HasPrefix(str, "udp")
 		if ok {
-			updTrackers = append(updTrackers, tracker)
+			tr := tracker{
+				kind: "udp",
+				url:  str,
+			}
+			updTrackers = append(updTrackers, tr)
 		}
 	}
 	return updTrackers, nil
