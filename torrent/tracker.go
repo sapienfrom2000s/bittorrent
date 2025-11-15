@@ -17,7 +17,7 @@ type tracker struct {
 	Kind string
 }
 
-func (t tracker) Peers(infoHash string) ([]Peer, error) {
+func (t tracker) Peers(infoHash string) ([]*Peer, error) {
 	switch t.Kind {
 	case "http":
 		return t.httpTrackerPeers(infoHash)
@@ -27,7 +27,7 @@ func (t tracker) Peers(infoHash string) ([]Peer, error) {
 	return nil, fmt.Errorf("only works for udp and http")
 }
 
-func (t tracker) httpTrackerPeers(infoHash string) ([]Peer, error) {
+func (t tracker) httpTrackerPeers(infoHash string) ([]*Peer, error) {
 	// Convert hex-encoded infohash to raw bytes
 	infoHashBytes, err := hex.DecodeString(infoHash)
 	if err != nil {
@@ -71,7 +71,7 @@ func (t tracker) httpTrackerPeers(infoHash string) ([]Peer, error) {
 	}
 
 	// Try to parse peers - could be compact (binary string) or dictionary format
-	peers := make([]Peer, 0)
+	peers := make([]*Peer, 0)
 
 	if peersCompact, ok := dict["peers"].(string); ok {
 		peersBytes := []byte(peersCompact)
@@ -84,11 +84,13 @@ func (t tracker) httpTrackerPeers(infoHash string) ([]Peer, error) {
 			port := binary.BigEndian.Uint16(peersBytes[i+4 : i+6])
 
 			peer := Peer{
-				id:   "", // Compact format doesn't include peer ID
-				Ip:   ip,
-				port: uint(port),
+				id:       "", // Compact format doesn't include peer ID
+				Ip:       ip,
+				port:     uint(port),
+				infoHash: string(infoHashBytes),
+				PeerId:   "abcde12345abcde12345",
 			}
-			peers = append(peers, peer)
+			peers = append(peers, &peer)
 		}
 		return peers, nil
 	}
@@ -110,7 +112,7 @@ func (t tracker) httpTrackerPeers(infoHash string) ([]Peer, error) {
 				Ip:   ip,
 				port: uint(port),
 			}
-			peers = append(peers, peer)
+			peers = append(peers, &peer)
 		}
 		return peers, nil
 	}
