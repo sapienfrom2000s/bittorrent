@@ -14,7 +14,7 @@ type Peer struct {
 	infoHash      string
 	am_interested bool
 	unchoked      bool
-	bitfield      []bool
+	bitfield      []byte
 	status        string // (idle/inactive/active)
 	mu            sync.Mutex
 	PeerId        string
@@ -56,6 +56,56 @@ func (p *Peer) Handshake() error {
 	return nil
 }
 
-// func (p *Peer) listen() {
-// 	conn := p.conn
-// }
+// Messages:
+// Keep-Alive length = 0 (no ID) (no payload)
+// Choke ID = 0 length = 1 payload: none
+// Unchoke ID = 1 length = 1 payload: none
+// Interested ID = 2 length = 1 payload: none
+// NotInterested ID = 3 length = 1 payload: none
+// Have ID = 4 length = 5 payload: piece index (4 bytes)
+// Bitfield ID = 5 length = 1 + bitfield length payload: bitfield
+// Request ID = 6 length = 13 payload: index (4), begin (4), length (4)
+// Piece ID = 7 length = 9 + block size payload: index (4), begin (4),
+// block
+// Cancel ID = 8 length = 13 payload: index (4), begin (4), length (4)
+//
+// <length prefix><message ID><payload>
+
+func (p *Peer) listen() {
+	conn := p.conn
+	for {
+		buff := make([]byte, 16*1024)
+		_, err := conn.Read(buff)
+		if err != nil {
+			fmt.Println("Unable to Read data")
+		}
+		var lengthPrefix uint
+		binary.Decode(buff[0:1], binary.BigEndian, &lengthPrefix)
+
+		var messageID uint
+		binary.Decode(buff[1:2], binary.BigEndian, &messageID)
+
+		switch messageID {
+		case 0: // Peer choked me
+			p.peerChokedMe()
+		case 1: // peer unchoked me
+			p.peerUnchokedMe()
+		case 5: // peer sent bitfield
+			p.peerSentMeBitfield(buff[2:])
+		case 7: // Peer sent a piece(actually a block)
+			p.peerSentMeABlock(buff[2:])
+		}
+	}
+}
+
+func (p *Peer) peerChokedMe() {
+	p.unchoked = false
+}
+
+func (p *Peer) peerUnchokedMe() {
+	p.unchoked = true
+}
+
+func (p *Peer) peerSentMeBitfield(payload []byte) {
+
+}
