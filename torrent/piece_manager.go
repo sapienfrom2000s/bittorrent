@@ -33,18 +33,18 @@ type PieceManager struct {
 	mu          sync.Mutex
 }
 
-func (pm *PieceManager) InitPieces() error {
-	if pm.pieceLength == 0 || pm.totalPieces == 0 {
+func (pieceManager *PieceManager) InitPieces() error {
+	if pieceManager.pieceLength == 0 || pieceManager.totalPieces == 0 {
 		return fmt.Errorf("pieceLength or totalPieces is not initialized")
 	}
 
-	for i := uint(1); i <= pm.totalPieces; i++ {
+	for i := uint(1); i <= pieceManager.totalPieces; i++ {
 		var pieceLength uint
 		var lastPiece bool
-		pieceLength = pm.pieceLength
-		if i == pm.totalPieces {
+		pieceLength = pieceManager.pieceLength
+		if i == pieceManager.totalPieces {
 			lastPiece = true
-			pieceLength = pm.fileLength - ((pm.totalPieces - 1) * pm.pieceLength)
+			pieceLength = pieceManager.fileLength - ((pieceManager.totalPieces - 1) * pieceManager.pieceLength)
 		}
 
 		piece := &Piece{
@@ -52,15 +52,15 @@ func (pm *PieceManager) InitPieces() error {
 			length: pieceLength,
 		}
 
-		pm.pending = append(pm.pending, piece)
+		pieceManager.pending = append(pieceManager.pending, piece)
 
-		pm.initBlocks(piece, pieceLength, lastPiece)
+		pieceManager.initBlocks(piece, pieceLength, lastPiece)
 	}
 	return nil
 }
 
 // this piece length might be different from that of piece manager
-func (pm *PieceManager) initBlocks(piece *Piece, pieceLength uint, lastPiece bool) {
+func (pieceManager *PieceManager) initBlocks(piece *Piece, pieceLength uint, lastPiece bool) {
 	numberOfBlocks := (pieceLength + blockLength - 1) / blockLength
 	for i := uint(1); i <= numberOfBlocks; i++ {
 		block := &Block{
@@ -76,4 +76,11 @@ func (pm *PieceManager) initBlocks(piece *Piece, pieceLength uint, lastPiece boo
 		}
 		piece.blocks = append(piece.blocks, block)
 	}
+}
+
+func (pieceManager *PieceManager) PendingPieces() []*Piece {
+	pieceManager.mu.Lock()
+	defer pieceManager.mu.Unlock()
+
+	return pieceManager.pending
 }
