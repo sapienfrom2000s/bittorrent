@@ -18,13 +18,29 @@ func main() {
 		log.Fatalf("Error parsing torrent file: %v", err)
 	}
 
-	peerManager := &torrent.PeerManager{
-		Infohash: tfi.InfoHash,
+	idlePeerBus := &torrent.IdlePeerBus{
+		Peer: make(chan *torrent.Peer),
 	}
+
+	blockRequestBus := &torrent.BlockRequestBus{
+		BlockRequest: make(chan *torrent.BlockRequest),
+	}
+
+	blockRequestResponseBus := &torrent.BlockRequestResponseBus{
+		Data: make(chan any),
+	}
+
+	peerManager := &torrent.PeerManager{
+		Infohash:        tfi.InfoHash,
+		IdlePeerBus:     idlePeerBus,
+		BlockRequestBus: blockRequestBus,
+	}
+
 	trackerManager := torrent.TrackerManager{
-		Infohash: tfi.InfoHash,
-		Pm:       peerManager,
-		Trackers: tfi.Trackers,
+		Infohash:        tfi.InfoHash,
+		Pm:              peerManager,
+		Trackers:        tfi.Trackers,
+		BlockRequestBus: blockRequestBus,
 	}
 
 	trackerManager.AskForPeers()

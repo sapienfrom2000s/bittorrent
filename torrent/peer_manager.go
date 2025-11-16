@@ -1,15 +1,23 @@
 package torrent
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
 
+type IdlePeerBus struct {
+	Peer chan *Peer
+}
+
+// I think channel can be directly ref(IdlePeerBus) here.
+// No need of decoupling this. Feels unnecessary
 type PeerManager struct {
-	Peers       []*Peer
-	Infohash    string
-	IdlePeerBus *IdlePeerBus
-	mu          sync.Mutex
+	Peers           []*Peer
+	Infohash        string
+	IdlePeerBus     *IdlePeerBus
+	BlockRequestBus *BlockRequestBus
+	mu              sync.Mutex
 }
 
 func (peerManager *PeerManager) PeerExists(id string) bool {
@@ -41,5 +49,25 @@ func (peerManager *PeerManager) FindIdlePeers() {
 			}
 		}
 		time.Sleep(500 * time.Millisecond)
+	}
+}
+
+func (peerManager *PeerManager) ReadBlockRequestBus() {
+	for {
+		blockRequest := <-peerManager.BlockRequestBus.BlockRequest
+		go peerManager.DownloadBlock(blockRequest)
+	}
+}
+
+// Should this go inside peer instead of peerManager?
+// The problem is that peer doesn't have ref to PeerManager
+// which has BlockRequestResponseBus. So how will it respond back
+// there?
+func (PeerManager *PeerManager) DownloadBlock(blockrequest *BlockRequest) {
+	peer := blockrequest.peer
+
+	err := peer.DownloadBlock(blockrequest)
+	if err != nil {
+		fmt.Println(err)
 	}
 }

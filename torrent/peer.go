@@ -111,4 +111,23 @@ func (p *Peer) peerSentMeBitfield(payload []byte) {
 }
 
 func (p *Peer) peerSentMeABlock(payload []byte) {
+
+}
+
+// request: <len=0013><id=6><index><begin><length>
+func (p *Peer) DownloadBlock(blockRequest *BlockRequest) error {
+	block := blockRequest.block
+	payload := make([]byte, 6)
+
+	payload[0] = byte(13)
+	payload[1] = byte(6)
+	payload[2] = byte(block.pieceIndex)
+	payload[3] = byte(block.offset)
+	binary.BigEndian.PutUint16(payload[4:6], blockLength)
+
+	_, err := p.conn.Write(payload)
+	if err != nil {
+		return err
+	}
+	return nil
 }

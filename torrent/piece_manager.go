@@ -15,11 +15,11 @@ type Piece struct {
 }
 
 type Block struct {
-	status string // downloaded, downloading, pending
-	length uint
-	index  uint
-	offset uint
-	mu     sync.Mutex
+	status     string // downloaded, downloading, pending
+	length     uint
+	pieceIndex uint
+	offset     uint
+	mu         sync.Mutex
 }
 
 type PieceManager struct {
@@ -64,10 +64,10 @@ func (pieceManager *PieceManager) initBlocks(piece *Piece, pieceLength uint, las
 	numberOfBlocks := (pieceLength + blockLength - 1) / blockLength
 	for i := uint(1); i <= numberOfBlocks; i++ {
 		block := &Block{
-			status: "pending",
-			length: blockLength,
-			index:  (i - uint(1)),
-			offset: (i - uint(1)) * blockLength,
+			status:     "pending",
+			length:     blockLength,
+			pieceIndex: piece.index,
+			offset:     (i - uint(1)) * blockLength,
 		}
 
 		if lastPiece && (i == numberOfBlocks) {
