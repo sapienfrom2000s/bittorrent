@@ -107,5 +107,8 @@ func (p *Peer) peerUnchokedMe() {
 }
 
 func (p *Peer) peerSentMeBitfield(payload []byte) {
+	p.bitfield = payload
+}
 
+func (p *Peer) peerSentMeABlock(payload []byte) {
 }
