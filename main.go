@@ -27,25 +27,40 @@ func main() {
 	}
 
 	blockRequestResponseBus := &torrent.BlockRequestResponseBus{
-		Data: make(chan any),
+		BlockResponse: make(chan *torrent.BlockResponse),
 	}
 
 	peerManager := &torrent.PeerManager{
-		Infohash:        tfi.InfoHash,
-		IdlePeerBus:     idlePeerBus,
-		BlockRequestBus: blockRequestBus,
+		Infohash:                tfi.InfoHash,
+		IdlePeerBus:             idlePeerBus,
+		BlockRequestBus:         blockRequestBus,
+		BlockRequestResponseBus: blockRequestResponseBus,
 	}
 
 	trackerManager := torrent.TrackerManager{
-		Infohash:        tfi.InfoHash,
-		Pm:              peerManager,
-		Trackers:        tfi.Trackers,
-		BlockRequestBus: blockRequestBus,
+		Infohash: tfi.InfoHash,
+		Pm:       peerManager,
+		Trackers: tfi.Trackers,
 	}
 
 	trackerManager.AskForPeers()
 	for _, i := range peerManager.Peers {
 		fmt.Println(i.Ip)
+	}
+
+	pieceManager := &torrent.PieceManager{}
+
+	err = pieceManager.InitPieces()
+	if err != nil {
+		log.Fatalf("Failed to initialize pieces: %v", err)
+	}
+
+	torrentManager := &torrent.TorrentManager{
+		TorrentFilePath:         "torrent/test.torrent",
+		PeerManager:             peerManager,
+		PieceManager:            pieceManager,
+		BlockRequestBus:         blockRequestBus,
+		BlockRequestResponseBus: blockRequestResponseBus,
 	}
 
 	// pm := torrent.PeerManager{}

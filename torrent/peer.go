@@ -8,17 +8,18 @@ import (
 )
 
 type Peer struct {
-	id            string
-	Ip            string
-	port          uint
-	infoHash      string
-	am_interested bool
-	unchoked      bool
-	bitfield      []byte
-	status        string // (idle/inactive/active)
-	mu            sync.Mutex
-	PeerId        string
-	conn          net.Conn
+	id                      string
+	Ip                      string
+	port                    uint
+	infoHash                string
+	am_interested           bool
+	unchoked                bool
+	bitfield                []byte
+	status                  string // (idle/inactive/active)
+	mu                      sync.Mutex
+	PeerId                  string
+	conn                    net.Conn
+	BlockRequestResponseBus *BlockRequestResponseBus
 }
 
 // From unofficial docs <https://wiki.theory.org/BitTorrentSpecification:
@@ -110,8 +111,19 @@ func (p *Peer) peerSentMeBitfield(payload []byte) {
 	p.bitfield = payload
 }
 
+// piece: <len=0009+X><id=7><index><begin><block>
 func (p *Peer) peerSentMeABlock(payload []byte) {
+	pieceIndex := payload[0]
+	blockIndex := payload[1]
+	blockData := payload[2:]
 
+	blockResponse := &BlockResponse{
+		pieceIndex: uint(pieceIndex),
+		blockIndex: uint(blockIndex),
+		blockData:  blockData,
+	}
+
+	p.BlockRequestResponseBus.BlockResponse <- blockResponse
 }
 
 // request: <len=0013><id=6><index><begin><length>

@@ -13,11 +13,12 @@ type IdlePeerBus struct {
 // I think channel can be directly ref(IdlePeerBus) here.
 // No need of decoupling this. Feels unnecessary
 type PeerManager struct {
-	Peers           []*Peer
-	Infohash        string
-	IdlePeerBus     *IdlePeerBus
-	BlockRequestBus *BlockRequestBus
-	mu              sync.Mutex
+	Peers                   []*Peer
+	Infohash                string
+	IdlePeerBus             *IdlePeerBus
+	BlockRequestBus         *BlockRequestBus
+	BlockRequestResponseBus *BlockRequestResponseBus
+	mu                      sync.Mutex
 }
 
 func (peerManager *PeerManager) PeerExists(id string) bool {
@@ -34,6 +35,8 @@ func (peerManager *PeerManager) PeerExists(id string) bool {
 func (peerManager *PeerManager) InsertPeer(p *Peer) {
 	peerManager.mu.Lock()
 	defer peerManager.mu.Unlock()
+
+	p.BlockRequestResponseBus = peerManager.BlockRequestResponseBus
 
 	peerManager.Peers = append(peerManager.Peers, p)
 }

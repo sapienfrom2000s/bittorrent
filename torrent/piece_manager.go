@@ -8,16 +8,23 @@ import (
 const blockLength = 16 * 1024
 
 type Piece struct {
+	status string // downloaded, downloading, pending
 	index  uint
 	length uint
 	blocks []*Block
 	mu     sync.Mutex
 }
 
+// Should block have a ref of Piece?
+// The problem with that is that both will have ref of each other
+// but generally data flows in only one direction
+// Or am I thinking it in a wrong way as double linked list has ref
+// of both ahead and behind block
 type Block struct {
 	status     string // downloaded, downloading, pending
 	length     uint
 	pieceIndex uint
+	blockIndex uint
 	offset     uint
 	mu         sync.Mutex
 }
@@ -48,6 +55,7 @@ func (pieceManager *PieceManager) InitPieces() error {
 		}
 
 		piece := &Piece{
+			status: "pending",
 			index:  (i - uint(1)),
 			length: pieceLength,
 		}
@@ -67,6 +75,7 @@ func (pieceManager *PieceManager) initBlocks(piece *Piece, pieceLength uint, las
 			status:     "pending",
 			length:     blockLength,
 			pieceIndex: piece.index,
+			blockIndex: (i - uint(1)),
 			offset:     (i - uint(1)) * blockLength,
 		}
 

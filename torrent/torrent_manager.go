@@ -5,18 +5,26 @@ type BlockRequest struct {
 	block *Block
 }
 
+type BlockResponse struct {
+	pieceIndex uint
+	blockIndex uint
+	blockData  []byte
+}
+
 type BlockRequestBus struct {
 	BlockRequest chan *BlockRequest
 }
 
 type BlockRequestResponseBus struct {
-	Data chan any
+	BlockResponse chan *BlockResponse
 }
 
 type TorrentManager struct {
-	torrentFilePath string
-	peerManager     *PeerManager
-	pieceManager    *PieceManager
+	TorrentFilePath         string
+	PeerManager             *PeerManager
+	PieceManager            *PieceManager
+	BlockRequestBus         *BlockRequestBus
+	BlockRequestResponseBus *BlockRequestResponseBus
 	// diskManager     *DiskManager
 }
 
@@ -28,7 +36,7 @@ func (tm *TorrentManager) Download() (bool, error) {
 	// event loop
 	for {
 		select {
-		case peer := <-tm.peerManager.IdlePeerBus.Peer:
+		case peer := <-tm.PeerManager.IdlePeerBus.Peer:
 			block := tm.blockToBeRequested(peer)
 
 			if block != nil {
@@ -37,13 +45,10 @@ func (tm *TorrentManager) Download() (bool, error) {
 					peer:  peer,
 				}
 
-				tm.peerManager.BlockRequestBus.BlockRequest <- blockRequest
+				tm.PeerManager.BlockRequestBus.BlockRequest <- blockRequest
 			}
-		case something:
+		case blockResponse := <-tm.PeerManager.BlockRequestResponseBus.BlockResponse:
 
-			// ask peer to download a piece
-			// case : listen for signal that download is done.
-			// When it's done just exit out of it.
 		}
 	}
 
@@ -53,7 +58,7 @@ func (tm *TorrentManager) Download() (bool, error) {
 // Modern RAM bandwidth: ~20–50 GB/s
 func (tm *TorrentManager) blockToBeRequested(peer *Peer) *Block {
 	bitfield := peer.bitfield
-	pendingPieces := tm.pieceManager.PendingPieces()
+	pendingPieces := tm.PieceManager.PendingPieces()
 
 	var selectedBlock *Block
 	for _, piece := range pendingPieces {
