@@ -25,7 +25,7 @@ type TorrentManager struct {
 	PieceManager            *PieceManager
 	BlockRequestBus         *BlockRequestBus
 	BlockRequestResponseBus *BlockRequestResponseBus
-	// diskManager     *DiskManager
+	DiskManager             *DiskManager
 }
 
 func (tm *TorrentManager) Download() (bool, error) {
@@ -48,7 +48,7 @@ func (tm *TorrentManager) Download() (bool, error) {
 				tm.PeerManager.BlockRequestBus.BlockRequest <- blockRequest
 			}
 		case blockResponse := <-tm.PeerManager.BlockRequestResponseBus.BlockResponse:
-
+			go tm.DiskManager.saveBlock(blockResponse)
 		}
 	}
 

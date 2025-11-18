@@ -55,12 +55,17 @@ func main() {
 		log.Fatalf("Failed to initialize pieces: %v", err)
 	}
 
+	diskManager := &torrent.DiskManager{
+		TorrentFileInfo: &tfi,
+	}
+
 	torrentManager := &torrent.TorrentManager{
 		TorrentFilePath:         "torrent/test.torrent",
 		PeerManager:             peerManager,
 		PieceManager:            pieceManager,
 		BlockRequestBus:         blockRequestBus,
 		BlockRequestResponseBus: blockRequestResponseBus,
+		DiskManager:             diskManager,
 	}
 
 	// pm := torrent.PeerManager{}
