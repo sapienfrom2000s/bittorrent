@@ -30,6 +30,10 @@ func main() {
 		BlockResponse: make(chan *torrent.BlockResponse),
 	}
 
+	blockWrittenBus := &torrent.BlockWrittenBus{
+		BlockWritten: make(chan *torrent.BlockWritten),
+	}
+
 	peerManager := &torrent.PeerManager{
 		Infohash:                tfi.InfoHash,
 		IdlePeerBus:             idlePeerBus,
@@ -57,6 +61,7 @@ func main() {
 
 	diskManager := &torrent.DiskManager{
 		TorrentFileInfo: &tfi,
+		BlockWrittenBus: blockWrittenBus,
 	}
 
 	torrentManager := &torrent.TorrentManager{
@@ -65,6 +70,7 @@ func main() {
 		PieceManager:            pieceManager,
 		BlockRequestBus:         blockRequestBus,
 		BlockRequestResponseBus: blockRequestResponseBus,
+		BlockWrittenBus:         blockWrittenBus,
 		DiskManager:             diskManager,
 	}
 

@@ -25,6 +25,7 @@ type DiskManager struct {
 	TorrentFileInfo *TorrentFileInfo
 	mu              sync.Mutex
 	filesMap        *filesMap
+	BlockWrittenBus *BlockWrittenBus
 }
 
 func (diskManager *DiskManager) saveBlock(blockResponse *BlockResponse) {
@@ -59,6 +60,14 @@ func (diskManager *DiskManager) saveBlock(blockResponse *BlockResponse) {
 	if err != nil {
 		fmt.Printf("Error writing to file %s: %v\n", pathToWrite, err)
 		return
+	}
+
+	// Send success event
+	diskManager.BlockWrittenBus.BlockWritten <- &BlockWritten{
+		pieceIndex: blockResponse.pieceIndex,
+		blockIndex: blockResponse.blockIndex,
+		success:    true,
+		err:        nil,
 	}
 }
 

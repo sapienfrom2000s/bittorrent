@@ -30,10 +30,10 @@ type Block struct {
 }
 
 type PieceManager struct {
-	pending     []*Piece
-	downloaded  []*Piece
-	downloading []*Piece
-	pieces      []*Piece
+	pending     map[int]*Piece
+	downloaded  map[int]*Piece
+	downloading map[int]*Piece
+	pieces      map[int]*Piece
 	pieceLength uint
 	fileLength  uint
 	totalPieces uint
@@ -44,6 +44,12 @@ func (pieceManager *PieceManager) InitPieces() error {
 	if pieceManager.pieceLength == 0 || pieceManager.totalPieces == 0 {
 		return fmt.Errorf("pieceLength or totalPieces is not initialized")
 	}
+
+	// Initialize maps
+	pieceManager.pending = make(map[int]*Piece)
+	pieceManager.downloaded = make(map[int]*Piece)
+	pieceManager.downloading = make(map[int]*Piece)
+	pieceManager.pieces = make(map[int]*Piece)
 
 	for i := uint(1); i <= pieceManager.totalPieces; i++ {
 		var pieceLength uint
@@ -60,7 +66,9 @@ func (pieceManager *PieceManager) InitPieces() error {
 			length: pieceLength,
 		}
 
-		pieceManager.pending = append(pieceManager.pending, piece)
+		pieceIndex := int(i - uint(1))
+		pieceManager.pending[pieceIndex] = piece
+		pieceManager.pieces[pieceIndex] = piece
 
 		pieceManager.initBlocks(piece, pieceLength, lastPiece)
 	}
@@ -87,9 +95,34 @@ func (pieceManager *PieceManager) initBlocks(piece *Piece, pieceLength uint, las
 	}
 }
 
-func (pieceManager *PieceManager) PendingPieces() []*Piece {
+func (pieceManager *PieceManager) PendingPieces() map[int]*Piece {
 	pieceManager.mu.Lock()
 	defer pieceManager.mu.Unlock()
 
 	return pieceManager.pending
+}
+
+// GetPiece returns a piece by its index from the pieces map
+func (pieceManager *PieceManager) GetPiece(index int) *Piece {
+	pieceManager.mu.Lock()
+	defer pieceManager.mu.Unlock()
+
+	return pieceManager.pieces[index]
+}
+
+// MovePieceToDownloaded moves a piece from pending to downloaded state
+func (pieceManager *PieceManager) MovePieceToDownloaded(index int) error {
+	pieceManager.mu.Lock()
+	defer pieceManager.mu.Unlock()
+
+	piece, exists := pieceManager.pending[index]
+	if !exists {
+		return fmt.Errorf("piece %d not found in pending", index)
+	}
+
+	delete(pieceManager.pending, index)
+	piece.status = "downloaded"
+	pieceManager.downloaded[index] = piece
+
+	return nil
 }
