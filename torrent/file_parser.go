@@ -22,6 +22,7 @@ type TorrentFileInfo struct {
 	Mode        fileType
 	PieceLength int64
 	TotalPieces int64
+	FileLength  int64 // Total length of all files
 }
 
 func (t TorrentFile) SetTorrentFileInfo() (TorrentFileInfo, error) {
@@ -53,9 +54,36 @@ func (t TorrentFile) SetTorrentFileInfo() (TorrentFileInfo, error) {
 		return tfi, fmt.Errorf("Piece length has to be a non-neg integer")
 	}
 
-	fileLength, ok := info["length"].(int64)
-	if !ok {
-		return tfi, fmt.Errorf("File length has to be asdfasa non-neg integer")
+	// Calculate total file length based on mode
+	var fileLength int64
+	if fileMode == single {
+		// Single file mode - get length directly
+		fileLength, ok = info["length"].(int64)
+		if !ok {
+			return tfi, fmt.Errorf("File length has to be a non-neg integer (single file mode)")
+		}
+	} else {
+		// Multi-file mode - sum up all file lengths
+		files, ok := info["files"].([]any)
+		if !ok {
+			return tfi, fmt.Errorf("Files list not found in multi-file torrent")
+		}
+
+		fileLength = 0
+		for _, file := range files {
+			fileMap, ok := file.(map[string]any)
+			if !ok {
+				continue
+			}
+			length, ok := fileMap["length"].(int64)
+			if ok {
+				fileLength += length
+			}
+		}
+
+		if fileLength == 0 {
+			return tfi, fmt.Errorf("Total file length is 0 in multi-file torrent")
+		}
 	}
 
 	numberOfPieces := (fileLength + pieceLength - 1) / pieceLength // clever math trick to get ceil value
@@ -67,42 +95,70 @@ func (t TorrentFile) SetTorrentFileInfo() (TorrentFileInfo, error) {
 	tfi.Mode = fileMode
 	tfi.PieceLength = pieceLength
 	tfi.TotalPieces = numberOfPieces
+	tfi.FileLength = fileLength
 
 	return tfi, nil
 }
 
 func (t TorrentFile) Trackers(dataMap map[string]any) ([]tracker, error) {
 	trackers := []tracker{}
+
+	// Try announce-list first (multi-tracker)
 	trackersData, ok := dataMap["announce-list"].([]any)
-	if !ok {
-		return nil, fmt.Errorf("announce-list not found or not an array")
+	if ok {
+		// Multi-tracker format
+		for _, val := range trackersData {
+			v, ok := val.([]any)
+			if !ok {
+				continue
+			}
+			for _, g := range v {
+				k, ok := g.(string)
+				if !ok {
+					continue
+				}
+
+				if strings.HasPrefix(k, "http") {
+					tr := tracker{
+						Kind: "http",
+						Url:  k,
+					}
+					trackers = append(trackers, tr)
+				} else if strings.HasPrefix(k, "udp") {
+					tr := tracker{
+						Kind: "udp",
+						Url:  k,
+					}
+					trackers = append(trackers, tr)
+				}
+			}
+		}
+	} else {
+		// Try single announce field (single-tracker)
+		announceURL, ok := dataMap["announce"].(string)
+		if !ok {
+			return nil, fmt.Errorf("no trackers found (neither 'announce' nor 'announce-list')")
+		}
+
+		if strings.HasPrefix(announceURL, "http") {
+			tr := tracker{
+				Kind: "http",
+				Url:  announceURL,
+			}
+			trackers = append(trackers, tr)
+		} else if strings.HasPrefix(announceURL, "udp") {
+			tr := tracker{
+				Kind: "udp",
+				Url:  announceURL,
+			}
+			trackers = append(trackers, tr)
+		} else {
+			return nil, fmt.Errorf("unsupported tracker protocol: %s", announceURL)
+		}
 	}
 
-	for _, val := range trackersData {
-		v, ok := val.([]any)
-		if !ok {
-			return nil, fmt.Errorf("Not a nested array")
-		}
-		for _, g := range v {
-			k, _ := g.(string)
-			ok := strings.HasPrefix(k, "http")
-			if ok {
-				tr := tracker{
-					Kind: "http",
-					Url:  k,
-				}
-				trackers = append(trackers, tr)
-			}
-
-			ok = strings.HasPrefix(k, "udp")
-			if ok {
-				tr := tracker{
-					Kind: "udp",
-					Url:  k,
-				}
-				trackers = append(trackers, tr)
-			}
-		}
+	if len(trackers) == 0 {
+		return nil, fmt.Errorf("no valid trackers found")
 	}
 
 	return trackers, nil

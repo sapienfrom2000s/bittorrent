@@ -21,11 +21,11 @@ type PeerManager struct {
 	mu                      sync.Mutex
 }
 
-func (peerManager *PeerManager) PeerExists(id string) bool {
+func (peerManager *PeerManager) PeerExists(ip string, port uint) bool {
 	peerManager.mu.Lock()
 	defer peerManager.mu.Unlock()
 	for _, peer := range peerManager.Peers {
-		if peer.id == id {
+		if peer.Ip == ip && peer.port == port {
 			return true
 		}
 	}
@@ -45,19 +45,28 @@ func (peerManager *PeerManager) InsertPeer(p *Peer) {
 // will be touched only by a single routine
 // so no lock needed
 func (peerManager *PeerManager) FindIdlePeers() {
+	fmt.Println(" Starting idle peer finder...")
 	for {
+		idleCount := 0
 		for _, peer := range peerManager.Peers {
-			if peer.status == "idle" {
+			if peer.Status == "idle" {
 				peerManager.IdlePeerBus.Peer <- peer
+				idleCount++
 			}
+		}
+		if idleCount > 0 {
+			fmt.Printf(" Found %d idle peer(s), sending to bus\n", idleCount)
 		}
 		time.Sleep(500 * time.Millisecond)
 	}
 }
 
 func (peerManager *PeerManager) ReadBlockRequestBus() {
+	fmt.Println(" Starting block request bus reader...")
 	for {
 		blockRequest := <-peerManager.BlockRequestBus.BlockRequest
+		fmt.Printf(" Processing block request (piece=%d, block=%d) for peer %s\n",
+			blockRequest.block.pieceIndex, blockRequest.block.blockIndex, blockRequest.peer.Ip)
 		go peerManager.DownloadBlock(blockRequest)
 	}
 }
@@ -69,8 +78,13 @@ func (peerManager *PeerManager) ReadBlockRequestBus() {
 func (PeerManager *PeerManager) DownloadBlock(blockrequest *BlockRequest) {
 	peer := blockrequest.peer
 
+	// Mark peer as active while downloading
+	peer.Status = "active"
+
 	err := peer.DownloadBlock(blockrequest)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf(" Failed to send block request: %v\n", err)
+		// Set back to idle on error so it can be retried
+		peer.Status = "idle"
 	}
 }

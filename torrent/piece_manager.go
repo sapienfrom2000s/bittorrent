@@ -34,14 +34,14 @@ type PieceManager struct {
 	downloaded  map[int]*Piece
 	downloading map[int]*Piece
 	pieces      map[int]*Piece
-	pieceLength uint
-	fileLength  uint
-	totalPieces uint
+	PieceLength uint
+	FileLength  uint
+	TotalPieces uint
 	mu          sync.Mutex
 }
 
 func (pieceManager *PieceManager) InitPieces() error {
-	if pieceManager.pieceLength == 0 || pieceManager.totalPieces == 0 {
+	if pieceManager.PieceLength == 0 || pieceManager.TotalPieces == 0 {
 		return fmt.Errorf("pieceLength or totalPieces is not initialized")
 	}
 
@@ -51,13 +51,13 @@ func (pieceManager *PieceManager) InitPieces() error {
 	pieceManager.downloading = make(map[int]*Piece)
 	pieceManager.pieces = make(map[int]*Piece)
 
-	for i := uint(1); i <= pieceManager.totalPieces; i++ {
+	for i := uint(1); i <= pieceManager.TotalPieces; i++ {
 		var pieceLength uint
 		var lastPiece bool
-		pieceLength = pieceManager.pieceLength
-		if i == pieceManager.totalPieces {
+		pieceLength = pieceManager.PieceLength
+		if i == pieceManager.TotalPieces {
 			lastPiece = true
-			pieceLength = pieceManager.fileLength - ((pieceManager.totalPieces - 1) * pieceManager.pieceLength)
+			pieceLength = pieceManager.FileLength - ((pieceManager.TotalPieces - 1) * pieceManager.PieceLength)
 		}
 
 		piece := &Piece{
@@ -100,6 +100,14 @@ func (pieceManager *PieceManager) PendingPieces() map[int]*Piece {
 	defer pieceManager.mu.Unlock()
 
 	return pieceManager.pending
+}
+
+// Downloaded returns the downloaded pieces map
+func (pieceManager *PieceManager) Downloaded() map[int]*Piece {
+	pieceManager.mu.Lock()
+	defer pieceManager.mu.Unlock()
+
+	return pieceManager.downloaded
 }
 
 // GetPiece returns a piece by its index from the pieces map

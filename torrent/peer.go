@@ -15,11 +15,12 @@ type Peer struct {
 	am_interested           bool
 	unchoked                bool
 	bitfield                []byte
-	status                  string // (idle/inactive/active)
+	Status                  string // (idle/inactive/active)
 	mu                      sync.Mutex
 	PeerId                  string
 	conn                    net.Conn
 	BlockRequestResponseBus *BlockRequestResponseBus
+	TotalPieces             uint // Total pieces in torrent (for bitfield initialization)
 }
 
 // From unofficial docs <https://wiki.theory.org/BitTorrentSpecification:
@@ -51,9 +52,44 @@ func (p *Peer) Handshake() error {
 		return fmt.Errorf("Failed to write to Peer")
 	}
 
-	// spawn a listen go routing to listen to peer's messages
-	// go listen()
+	// Read the peer's handshake response (68 bytes)
+	response := make([]byte, 68)
+	_, err = conn.Read(response)
+	if err != nil {
+		return fmt.Errorf("Failed to read handshake response: %v", err)
+	}
 
+	// Validate the handshake response
+	if response[0] != 19 {
+		return fmt.Errorf("Invalid handshake response")
+	}
+
+	fmt.Printf(" Handshake successful with peer %s\n", p.Ip)
+
+	// Send interested message to peer
+	err = p.sendInterested()
+	if err != nil {
+		return fmt.Errorf("Failed to send interested message: %v", err)
+	}
+
+	fmt.Printf(" Sent 'interested' message to peer %s\n", p.Ip)
+
+	return nil
+}
+
+// sendInterested sends an "interested" message to the peer
+// Message format: <len=0001><id=2>
+func (p *Peer) sendInterested() error {
+	message := make([]byte, 5)
+	binary.BigEndian.PutUint32(message[0:4], 1) // length = 1
+	message[4] = 2                              // message ID = 2 (interested)
+
+	_, err := p.conn.Write(message)
+	if err != nil {
+		return err
+	}
+
+	p.am_interested = true
 	return nil
 }
 
@@ -72,29 +108,67 @@ func (p *Peer) Handshake() error {
 //
 // <length prefix><message ID><payload>
 
-func (p *Peer) listen() {
+func (p *Peer) Listen() {
 	conn := p.conn
 	for {
-		buff := make([]byte, 16*1024)
-		_, err := conn.Read(buff)
+		// Read message length prefix (4 bytes)
+		lengthBuf := make([]byte, 4)
+		_, err := conn.Read(lengthBuf)
 		if err != nil {
-			fmt.Println("Unable to Read data")
+			fmt.Printf("Peer %s disconnected: %v\n", p.Ip, err)
+			return // Exit the goroutine on error
 		}
-		var lengthPrefix uint
-		binary.Decode(buff[0:1], binary.BigEndian, &lengthPrefix)
 
-		var messageID uint
-		binary.Decode(buff[1:2], binary.BigEndian, &messageID)
+		messageLength := binary.BigEndian.Uint32(lengthBuf)
 
+		// Keep-alive message (length = 0)
+		if messageLength == 0 {
+			continue
+		}
+
+		// Read message ID (1 byte)
+		messageIDBuf := make([]byte, 1)
+		_, err = conn.Read(messageIDBuf)
+		if err != nil {
+			fmt.Printf("Failed to read message ID from %s: %v\n", p.Ip, err)
+			return
+		}
+		messageID := messageIDBuf[0]
+
+		// Read payload (remaining bytes)
+		payloadLength := messageLength - 1
+
+		payload := make([]byte, payloadLength)
+		if payloadLength > 0 {
+			bytesRead := 0
+			for bytesRead < int(payloadLength) {
+				n, err := conn.Read(payload[bytesRead:])
+				if err != nil {
+					fmt.Printf("Failed to read payload from %s: %v\n", p.Ip, err)
+					return
+				}
+				bytesRead += n
+			}
+		}
+
+		// Handle different message types
 		switch messageID {
 		case 0: // Peer choked me
+			fmt.Printf(" Peer %s choked us\n", p.Ip)
 			p.peerChokedMe()
 		case 1: // peer unchoked me
+			fmt.Printf(" Peer %s unchoked us - ready to download!\n", p.Ip)
 			p.peerUnchokedMe()
 		case 5: // peer sent bitfield
-			p.peerSentMeBitfield(buff[2:])
+			fmt.Printf(" Received bitfield from peer %s (%d bytes)\n", p.Ip, len(payload))
+			p.peerSentMeBitfield(payload)
+			fmt.Printf(" DEBUG: Bitfield stored, length=%d, unchoked=%v\n", len(p.bitfield), p.unchoked)
 		case 7: // Peer sent a piece(actually a block)
-			p.peerSentMeABlock(buff[2:])
+			fmt.Printf(" Received block data from peer %s (%d bytes)\n", p.Ip, len(payload))
+			p.peerSentMeABlock(payload)
+		default:
+			// Ignore unknown message types
+			fmt.Printf(" Unknown message type %d from peer %s\n", messageID, p.Ip)
 		}
 	}
 }
@@ -105,17 +179,46 @@ func (p *Peer) peerChokedMe() {
 
 func (p *Peer) peerUnchokedMe() {
 	p.unchoked = true
+	// Set to idle when unchoked (bitfield might have been sent earlier, or peer uses "have" messages)
+	p.Status = "idle"
+	if p.bitfield != nil && len(p.bitfield) > 0 {
+		fmt.Printf(" Peer %s is now ready (has bitfield + unchoked)\n", p.Ip)
+	} else {
+		fmt.Printf(" Peer %s is now ready (unchoked, no bitfield yet - will use 'have' messages)\n", p.Ip)
+	}
 }
 
 func (p *Peer) peerSentMeBitfield(payload []byte) {
 	p.bitfield = payload
+	// Set to idle if already unchoked
+	if p.unchoked {
+		p.Status = "idle"
+		fmt.Printf(" Peer %s is now ready (has bitfield + unchoked)\n", p.Ip)
+	}
 }
 
 // piece: <len=0009+X><id=7><index><begin><block>
+// Payload format: 4 bytes piece index + 4 bytes begin offset + block data
 func (p *Peer) peerSentMeABlock(payload []byte) {
-	pieceIndex := payload[0]
-	blockIndex := payload[1]
-	blockData := payload[2:]
+	if len(payload) < 8 {
+		fmt.Printf(" Invalid block payload size: %d bytes\n", len(payload))
+		return
+	}
+
+	// Parse piece index (4 bytes)
+	pieceIndex := binary.BigEndian.Uint32(payload[0:4])
+
+	// Parse begin offset (4 bytes)
+	begin := binary.BigEndian.Uint32(payload[4:8])
+
+	// Calculate block index from begin offset
+	blockIndex := begin / uint32(blockLength)
+
+	// Extract block data (remaining bytes)
+	blockData := payload[8:]
+
+	fmt.Printf(" Parsed block: piece=%d, begin=%d, blockIndex=%d, dataSize=%d\n",
+		pieceIndex, begin, blockIndex, len(blockData))
 
 	blockResponse := &BlockResponse{
 		pieceIndex: uint(pieceIndex),
@@ -123,21 +226,41 @@ func (p *Peer) peerSentMeABlock(payload []byte) {
 		blockData:  blockData,
 	}
 
+	// Set peer back to idle after receiving block
+	p.Status = "idle"
+
 	p.BlockRequestResponseBus.BlockResponse <- blockResponse
 }
 
 // request: <len=0013><id=6><index><begin><length>
+// Message format: 4 bytes length prefix + 1 byte message ID + 4 bytes piece index + 4 bytes begin offset + 4 bytes block length
 func (p *Peer) DownloadBlock(blockRequest *BlockRequest) error {
 	block := blockRequest.block
-	payload := make([]byte, 6)
 
-	payload[0] = byte(13)
-	payload[1] = byte(6)
-	payload[2] = byte(block.pieceIndex)
-	payload[3] = byte(block.offset)
-	binary.BigEndian.PutUint16(payload[4:6], blockLength)
+	// Calculate the byte offset within the piece
+	begin := uint32(block.blockIndex) * uint32(blockLength)
 
-	_, err := p.conn.Write(payload)
+	// Create message: length prefix (4) + message ID (1) + index (4) + begin (4) + length (4) = 17 bytes
+	message := make([]byte, 17)
+
+	// Length prefix (13 bytes for the message after the length prefix)
+	binary.BigEndian.PutUint32(message[0:4], 13)
+
+	// Message ID (6 = request)
+	message[4] = 6
+
+	// Piece index (4 bytes)
+	binary.BigEndian.PutUint32(message[5:9], uint32(block.pieceIndex))
+
+	// Begin offset (4 bytes)
+	binary.BigEndian.PutUint32(message[9:13], begin)
+
+	// Block length (4 bytes)
+	binary.BigEndian.PutUint32(message[13:17], uint32(blockLength))
+
+	fmt.Printf(" Sending request: piece=%d, begin=%d, length=%d\n", block.pieceIndex, begin, blockLength)
+
+	_, err := p.conn.Write(message)
 	if err != nil {
 		return err
 	}
