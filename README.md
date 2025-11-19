@@ -37,18 +37,22 @@ Writes blocks to file
 
 ## Channels
 1. IdlePeerBus - Carries idle peers that are ready to download blocks.
+
   Producer: Peer manager's FindIdlePeers go routine scans all peers every 500ms and pushes idle ones here.
   Consumer: Torrent manager listens on this channel and assigns work to idle peers.
 
 2. BlockRequestBus - Carries block download requests.
+
   Producer: Torrent manager creates a BlockRequest (which peer should download which block) and pushes it here.
   Consumer: Peer manager's ReadBlockRequestBus go routine picks up requests and spawns a go routine to handle each one.
 
 3. BlockRequestResponseBus - Carries downloaded block data.
+
   Producer: Each peer's Listen loop receives block data from the network and pushes it here after parsing.
   Consumer: Torrent manager receives the block data and hands it to disk manager.
 
 4. BlockWrittenBus - Carries disk write results (success or failure).
+
   Producer: Disk manager pushes an event here after attempting to write a block to disk.
   Consumer: Torrent manager handles the event by updating block status and checking if the piece is complete.
 
