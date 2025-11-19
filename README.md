@@ -2,6 +2,27 @@ This project was built to get hang of golang. AI(LLMs and Coding Agents) were
 used heavily for brainstorming system design and debugging protocol
 issues.
 
+## How to Run
+
+1. Place your `.torrent` file in the `torrent/` directory (e.g., `torrent/test.torrent`).
+Test torrent will also work fine. To view the contents of the file you can use `https://chocobo1.github.io/bencode_online/`
+2. Update the torrent file path in `main.go` if needed:
+   ```go
+   tf := torrent.TorrentFile{
+       Path: "torrent/test.torrent",
+   }
+   ```
+3. (Optional) Change the download directory by modifying `basePath` in `torrent/disk_manager.go`:
+   ```go
+   const basePath = "./asdf/"  // Change this to your preferred location
+   ```
+4. Build and run:
+   ```bash
+   go run main.go
+   ```
+
+Downloaded files will be saved in the directory specified by `basePath` (default: `./asdf/`).
+
 ## System Components
 
 1. Torrent Manager(Heart of the system)
